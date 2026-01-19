@@ -4,14 +4,16 @@ import pandas as pd
 
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 1. Connection & Session State Initialization
+# 1. ROBUST INITIALIZATION
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 if 'df' not in st.session_state:
     st.session_state.df = conn.read(ttl=0)
+
+if 'needs_sync' not in st.session_state:
     st.session_state.needs_sync = False
 
-# 2. Update Functions (Logic separated from UI)
+# 2. CALLBACKS (Logic handled safely)
 def update_qty(index, delta):
     st.session_state.df.at[index, 'item_quantity'] += delta
     if st.session_state.df.at[index, 'item_quantity'] < 0:
@@ -21,22 +23,39 @@ def update_qty(index, delta):
 def sync_data():
     conn.update(data=st.session_state.df)
     st.session_state.needs_sync = False
-    st.toast("✅ Changes saved to Google Sheets")
+    st.toast("✅ Cloud Updated")
 
-# 3. CSS for tight mobile layout
+# 3. CSS for Mobile Density
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
-    .item-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .item-name { font-size: 16px; flex-grow: 1; }
-    .item-qty { font-size: 18px; font-weight: bold; color: #ff4b4b; margin: 0 15px; min-width: 25px; text-align: center; }
-    /* Style buttons to be small circles */
-    div.stButton > button {
-        border-radius: 50% !important;
-        width: 35px !important;
-        height: 35px !important;
-        padding: 0px !important;
+    
+    /* Ensure rows don't wrap */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+    }
+
+    /* Column 1: Item Name & Qty */
+    [data-testid="column"]:nth-of-type(1) { flex: 10 !important; }
+    
+    /* Column 2 & 3: Buttons */
+    [data-testid="column"]:nth-of-type(2), 
+    [data-testid="column"]:nth-of-type(3) { 
+        flex: 1 !important; 
+        max-width: 45px !important; 
+        min-width: 45px !important;
+    }
+
+    /* Solid Gray Buttons for reliability */
+    button[kind="secondary"] {
+        border-radius: 5px !important;
+        height: 40px !important;
+        width: 40px !important;
         font-weight: bold !important;
+        font-size: 20px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -44,12 +63,12 @@ st.markdown("""
 # 4. Main UI
 st.title("🍎 Pantry Pilot")
 
-# Show Sync button if changes exist
+# Sync Button (Top of page)
 if st.session_state.needs_sync:
-    st.button("💾 SAVE TO GOOGLE SHEETS", on_click=sync_data, use_container_width=True, type="primary")
+    st.button("☁️ SYNC TO GOOGLE SHEETS", on_click=sync_data, use_container_width=True, type="primary")
 
-if not st.session_state.df.empty:
-    df = st.session_state.df
+df = st.session_state.df
+if not df.empty:
     locs = sorted(df['location'].dropna().unique().tolist())
     sel_loc = st.selectbox("📍 Location", locs)
     
@@ -58,29 +77,23 @@ if not st.session_state.df.empty:
 
     st.divider()
 
-    # 5. The List using simple Columns (No segmented control to avoid KeyError)
+    # 5. THE LIST
     items_to_show = df[(df['location'] == sel_loc) & (df['category'] == sel_cat)]
     
     for index, row in items_to_show.iterrows():
-        # We use a container to keep everything tight
-        with st.container():
-            col1, col2, col3, col4 = st.columns([6, 1, 2, 1])
+        c1, c2, c3 = st.columns([10, 1, 1])
+        
+        with c1:
+            # Name and Quantity on one line
+            st.markdown(f"**{row['item_name']}** :red[{int(row['item_quantity'])}]")
             
-            with col1:
-                st.markdown(f"**{row['item_name']}**")
+        with c2:
+            st.button("＋", key=f"p_{index}", on_click=update_qty, args=(index, 1))
             
-            with col2:
-                # Minus button
-                st.button("−", key=f"min_{index}", on_click=update_qty, args=(index, -1))
-                
-            with col3:
-                # Quantity display
-                st.markdown(f"<div style='text-align:center; color:#ff4b4b; font-weight:bold; font-size:18px;'>{int(row['item_quantity'])}</div>", unsafe_allow_html=True)
-                
-            with col4:
-                # Plus button
-                st.button("＋", key=f"pls_{index}", on_click=update_qty, args=(index, 1))
-            
-            st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
+        with c3:
+            st.button("－", key=f"m_{index}", on_click=update_qty, args=(index, -1))
+        
+        st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
+
 else:
-    st.info("No items found.")
+    st.info("No data found.")
