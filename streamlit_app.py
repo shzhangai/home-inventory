@@ -5,36 +5,59 @@ import pandas as pd
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 2. THE CSS: Solid, visible text-based buttons
+# 2. THE CSS: Focus on stopping the "Stacking" behavior
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
     
-    /* The Row Container */
-    .pantry-line {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 0;
-        border-bottom: 1px solid #eee;
+    /* Force columns to NOT stack on mobile */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
     }
 
-    /* Target the buttons specifically */
+    /* Column 1: Item Name (Flexible) */
+    [data-testid="column"]:nth-of-type(1) {
+        flex: 10 !important;
+        min-width: 0px !important;
+    }
+    
+    /* Columns 2 & 3: Buttons (Fixed small width) */
+    [data-testid="column"]:nth-of-type(2), 
+    [data-testid="column"]:nth-of-type(3) {
+        flex: 1 !important;
+        max-width: 45px !important;
+        min-width: 45px !important;
+    }
+
+    /* Button styling: No background, just bold colored text */
     div[data-testid="stButton"] > button {
-        border: 1px solid #ddd !important; /* Adding a light border back so you can see the target */
-        background-color: #f9f9f9 !important;
-        color: black !important;
-        font-weight: bold !important;
-        font-size: 20px !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0px !important;
+        margin: 0px !important;
         height: 40px !important;
         width: 40px !important;
-        padding: 0px !important;
-        border-radius: 5px !important;
     }
 
-    /* Force Colors on the text symbols */
-    .plus-label { color: #28a745 !important; font-weight: 900; font-size: 24px; }
-    .minus-label { color: #dc3545 !important; font-weight: 900; font-size: 24px; }
+    /* Plus color */
+    [data-testid="column"]:nth-of-type(2) button p {
+        color: #28a745 !important;
+        font-size: 28px !important;
+        font-weight: bold !important;
+    }
+
+    /* Minus color */
+    [data-testid="column"]:nth-of-type(3) button p {
+        color: #dc3545 !important;
+        font-size: 28px !important;
+        font-weight: bold !important;
+    }
+
+    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -43,45 +66,49 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 if 'df' not in st.session_state:
     st.session_state.df = conn.read(ttl=0)
 
-# 4. Instant Update Fragment
+# 4. Update Fragment
 @st.fragment
-def show_items(selected_loc, selected_cat):
+def show_pantry_list(selected_loc, selected_cat):
     df = st.session_state.df
     items = df[(df['location'] == selected_loc) & (df['category'] == selected_cat)]
     
     for index, row in items.iterrows():
-        # Create a container for the row
-        with st.container():
-            # Name and Quantity at the top
-            st.markdown(f"**{row['item_name']}** : red[{int(row['item_quantity'])}]")
+        # Create 3 columns that the CSS above will force to stay in one row
+        cols = st.columns([10, 1, 1])
+        
+        with cols[0]:
+            # Standard HTML for the red quantity to ensure it works
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                    <span style="font-size: 16px; font-weight: 500;">{row['item_name']}</span>
+                    <span style="font-size: 16px; font-weight: bold; color: #ff4b4b;">{int(row['item_quantity'])}</span>
+                </div>
+            """, unsafe_allow_html=True)
             
-            # Plus and Minus buttons side-by-side right under the name
-            # We use a very small gap to keep them together
-            btn_left, btn_right, _ = st.columns([1, 1, 4])
-            
-            with btn_left:
-                if st.button("＋", key=f"add_{index}"):
-                    st.session_state.df.at[index, 'item_quantity'] += 1
+        with cols[1]:
+            if st.button("+", key=f"add_{index}"):
+                st.session_state.df.at[index, 'item_quantity'] += 1
+                conn.update(data=st.session_state.df)
+                st.rerun(scope="fragment")
+                
+        with cols[2]:
+            if st.button("-", key=f"rem_{index}"):
+                if row['item_quantity'] > 0:
+                    st.session_state.df.at[index, 'item_quantity'] -= 1
                     conn.update(data=st.session_state.df)
                     st.rerun(scope="fragment")
-            
-            with btn_right:
-                if st.button("－", key=f"rem_{index}"):
-                    if row['item_quantity'] > 0:
-                        st.session_state.df.at[index, 'item_quantity'] -= 1
-                        conn.update(data=df)
-                        st.rerun(scope="fragment")
-            
-            st.markdown("---")
+        
+        st.markdown("<hr style='margin: 5px 0; opacity: 0.1;'>", unsafe_allow_html=True)
 
 # 5. UI Build
-st.title("🍎 Family Inventory")
+st.title("🍎 Pantry")
 
 if not st.session_state.df.empty:
     locs = sorted(st.session_state.df['location'].dropna().unique().tolist())
     sel_loc = st.selectbox("📍 Location", locs)
     
-    cats = sorted(st.session_state.df[st.session_state.df['location'] == sel_loc]['category'].dropna().unique().tolist())
-    sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
+    current_cats = sorted(st.session_state.df[st.session_state.df['location'] == sel_loc]['category'].dropna().unique().tolist())
+    sel_cat = st.pills("Category", current_cats, default=current_cats[0] if current_cats else None)
 
-    show_items(sel_loc, sel_cat)
+    st.divider()
+    show_pantry_list(sel_loc, sel_cat)
