@@ -4,22 +4,21 @@ import pandas as pd
 
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 1. KILL ALL GAPS WITH CSS
+# 1. UPDATED CSS
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
     [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     
-    /* Style the links so they look like big, bold text signs */
+    /* Base style for the clickable signs */
     .pantry-btn {
         text-decoration: none !important;
-        font-size: 24px !important;
+        font-size: 28px !important; /* Slightly larger for easier tapping */
         font-weight: bold !important;
-        color: #007bff !important; /* Blue color so you know it's clickable */
         padding: 0 10px !important;
         display: inline-block;
+        line-height: 1;
     }
-    .pantry-btn:active { color: #ff4b4b !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -53,22 +52,20 @@ if df is not None and not df.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 4. THE ROW DISPLAY (HTML ONLY)
-    for index, row in loc_df.iterrows():
-        # We build one single HTML line for Name, Qty, +, and -
-        # This ensures they are literally right next to each other
-        st.markdown(f"""
-            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-                <div style="flex-grow: 1; font-size: 15px;">
-                    <b>{row['item_name']}</b> 
-                    <span style="color: #ff4b4b; margin-left: 10px; font-weight: 800;">{int(row['item_quantity'])}</span>
-                </div>
-                <div style="display: flex; gap: 20px;">
-                    <a href="/?action=add&id={index}" target="_self" class="pantry-btn">+</a>
-                    <a href="/?action=rem&id={index}" target="_self" class="pantry-btn">−</a>
-                </div>
+   # 4. THE ROW DISPLAY (Updated for Colors)
+for index, row in loc_df.iterrows():
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+            <div style="flex-grow: 1; font-size: 15px;">
+                <b>{row['item_name']}</b> 
+                <span style="color: #ff4b4b; margin-left: 10px; font-weight: 800;">{int(row['item_quantity'])}</span>
             </div>
-        """, unsafe_allow_html=True)
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <a href="/?action=add&id={index}" target="_self" class="pantry-btn" style="color: #28a745 !important;">+</a>
+                <a href="/?action=rem&id={index}" target="_self" class="pantry-btn" style="color: #dc3545 !important;">−</a>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
 else:
     st.info("Pantry is empty!")
