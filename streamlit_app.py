@@ -9,33 +9,33 @@ st.set_page_config(page_title="Pantry Pilot", layout="centered")
 # Custom CSS for a tight mobile UI
 st.markdown("""
     <style>
-    /* Force the main container to be wide */
     .block-container { padding: 1rem 0.5rem !important; }
-
-    /* Remove the vertical gap between the HTML name and the Button columns */
-    [data-testid="stVerticalBlock"] > div {
-        margin-top: -5px !important;
-        margin-bottom: -5px !important;
+    
+    /* Force the button columns to stay side-by-side and float right */
+    [data-testid="stHorizontalBlock"] {
+        width: 80px !important;
+        float: right !important;
+        margin-top: -32px !important; /* Pulls buttons up into the name line */
+        z-index: 999;
+    }
+    
+    [data-testid="column"] {
+        width: 40px !important;
+        flex: none !important;
     }
 
-    /* Style the buttons to be very small circles */
     div[data-testid="stButton"] > button {
         height: 30px !important;
         width: 30px !important;
-        min-width: 30px !important;
         padding: 0px !important;
         border-radius: 50% !important;
-        border: none !important;
         background-color: transparent !important;
+        border: none !important;
         font-size: 20px !important;
-        margin-top: -42px !important; /* The magic 'pull up' number */
     }
     
-    /* Hide the gap between columns */
-    [data-testid="column"] {
-        width: min-content !important;
-        flex: unset !important;
-    }
+    /* Remove the default gap Streamlit adds to everything */
+    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -94,40 +94,49 @@ if df is not None and not df.empty:
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
             
-            # 1. We build the "Text" part (Name and Qty) in ONE line using Flexbox
-            # This is 100% immune to Streamlit's stacking behavior
-            item_html = f"""
-            <div style="display: flex; align-items: center; width: 100%; font-family: sans-serif;">
-                <div style="flex: 4; font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                    {row['item_name']}
-                </div>
-                <div style="flex: 1; text-align: center; font-weight: bold; font-size: 16px;">
-                    {int(row['item_quantity'])}
-                </div>
-                <div style="flex: 2;"></div> </div>
-            """
-            st.markdown(item_html, unsafe_allow_html=True)
+            # 1. THE TEXT WRAPPER
+            # We use a container to keep the text and buttons from drifting
+            with st.container():
+                # We create the Name and Qty as a background layer
+                st.markdown(f"""
+                    <div style="display: flex; align-items: center; padding-top: 10px;">
+                        <div style="flex: 5; font-weight: bold; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {row['item_name']}
+                        </div>
+                        <div style="flex: 1; text-align: center; font-weight: bold; font-size: 16px; margin-right: 80px;">
+                            {int(row['item_quantity'])}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
 
-            # 2. We place the buttons in a floating column with a NEGATIVE margin 
-            # to pull them up into the row we just created.
-            btn_cols = st.columns([5, 1, 1])
-            with btn_cols[1]:
-                if st.button("🟢", key=f"add_{index}", use_container_width=True):
-                    df.at[index, 'item_quantity'] += 1
-                    conn.update(data=df)
-                    st.rerun()
-            with btn_cols[2]:
-                if st.button("🔴", key=f"rem_{index}", use_container_width=True):
-                    if row['item_quantity'] > 0:
-                        df.at[index, 'item_quantity'] -= 1
+                # 2. THE BUTTONS
+                # We use a tiny column set that is "pulled up" via CSS
+                # By using only 2 columns here, we reduce the 'stacking' risk
+                c_btn1, c_btn2 = st.columns([1, 1])
+                
+                # We use a helper div to float these to the right
+                with c_btn1:
+                    if st.button("🟢", key=f"add_{index}"):
+                        df.at[index, 'item_quantity'] += 1
                         conn.update(data=df)
                         st.rerun()
+                with c_btn2:
+                    if st.button("🔴", key=f"rem_{index}"):
+                        if row['item_quantity'] > 0:
+                            df.at[index, 'item_quantity'] -= 1
+                            conn.update(data=df)
+                            st.rerun()
 
-            # Note row
-            if pd.notna(row['note']) and str(row['note']).strip() != "":
-                st.markdown(f"<div style='font-size: 12px; color: gray; margin-top: -10px;'>📝 {row['note']}</div>", unsafe_allow_html=True)
-            
-            st.markdown("<hr style='margin: 2px 0; border: none; border-bottom: 1px solid #f0f0f0;'>", unsafe_allow_html=True)
+                # 3. THE NOTE
+                if pd.notna(row['note']) and str(row['note']).strip() != "":
+                    st.markdown(f"<div style='font-size: 12px; color: gray; margin-top: -12px; margin-bottom: 5px;'>📝 {row['note']}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<hr style='margin: 0; border: none; border-bottom: 1px solid #eee;'>", unsafe_allow_html=True)
+
+else:
+    st.info("Pantry is empty!")
+    if st.button("➕ Add First Item"):
+        add_item_dialog("", "", [], [])
 
 else:
     st.info("Pantry is empty!")
