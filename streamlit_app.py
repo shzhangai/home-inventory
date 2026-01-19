@@ -101,41 +101,42 @@ if df is not None and not df.empty:
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
             
-            # Ratios changed to 3.5 (Name), 0.8 (Qty), 1 (Plus), 1 (Minus)
-            # This 'gap="small"' helps keep them close
-            c1, c2, c3, c4 = st.columns([3.5, 0.8, 1, 1], gap="small", vertical_alignment="center")
-            
-            with c1:
-                # We allow wrapping here so if a name is long, it goes to row 2 
-                # instead of pushing the buttons off-screen
-                st.markdown(f"<div style='font-size: 14px; line-height: 1.2; font-weight: 500;'>{row['item_name']}</div>", unsafe_allow_html=True)
-            
-            with c2:
-                # Centered number
-                st.markdown(f"<div style='text-align: center;'><b>{int(row['item_quantity'])}</b></div>", unsafe_allow_html=True)
-            
-            with c3:
-                if st.button("🟢", key=f"add_{index}", use_container_width=True):
-                    df.at[index, 'item_quantity'] += 1
-                    df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
-                    conn.update(data=df)
-                    st.rerun()
-            
-            with c4:
-                if st.button("🔴", key=f"rem_{index}", use_container_width=True):
-                    if row['item_quantity'] > 0:
-                        df.at[index, 'item_quantity'] -= 1
-                        df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
-                        conn.update(data=df)
-                        st.rerun()
-            
-            # Note row
-            if pd.notna(row['note']) and str(row['note']).strip() != "":
-                st.caption(f"📝 {row['note']}")
-            
-            st.markdown("<hr style='margin: 4px 0; opacity: 0.3;'>", unsafe_allow_html=True)
+            # We use a container to keep the row tight
+            with st.container():
+                # We use only 3 columns: Name, Qty, and a single column for BOTH buttons
+                # This prevents Streamlit from adding gaps between the buttons
+                c1, c2, c3 = st.columns([4, 1, 2], gap="small", vertical_alignment="center")
                 
-            st.divider()
+                with c1:
+                    # Item Name
+                    st.markdown(f"**{row['item_name']}**")
+                
+                with c2:
+                    # Quantity (Bold and centered)
+                    st.markdown(f"<div style='text-align: center;'>{int(row['item_quantity'])}</div>", unsafe_allow_html=True)
+                
+                with c3:
+                    # We put both buttons in one column to keep them touching
+                    btn_col1, btn_col2 = st.columns(2)
+                    with btn_col1:
+                        if st.button("🟢", key=f"add_{index}"):
+                            df.at[index, 'item_quantity'] += 1
+                            df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
+                            conn.update(data=df)
+                            st.rerun()
+                    with btn_col2:
+                        if st.button("🔴", key=f"rem_{index}"):
+                            if row['item_quantity'] > 0:
+                                df.at[index, 'item_quantity'] -= 1
+                                df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
+                                conn.update(data=df)
+                                st.rerun()
+                
+                # Note underneath
+                if pd.notna(row['note']) and str(row['note']).strip() != "":
+                    st.caption(f"📝 {row['note']}")
+            
+            st.markdown("<hr style='margin: 2px 0; opacity: 0.2;'>", unsafe_allow_html=True)
 else:
     st.info("Your pantry is empty. Add your first item!")
     if st.button("➕ Add First Item"):
