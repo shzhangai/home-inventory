@@ -132,6 +132,6 @@ if df is not None and not df.empty:
                 st.caption(f"📝 {row['note']}")
 
     else:
-    st.info("Your pantry is empty. Add your first item!")
-    if st.button("➕ Add First Item"):
+        st.info("Your pantry is empty. Add your first item!")
+        if st.button("➕ Add First Item"):
 
