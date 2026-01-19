@@ -5,110 +5,99 @@ import pandas as pd
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 2. THE CSS: Focus on stopping the "Stacking" behavior
+# 2. THE CSS: Direct styling for the HTML links
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
     
-    /* Force columns to NOT stack on mobile */
-    [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
+    .pantry-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid #eee;
     }
 
-    /* Column 1: Item Name (Flexible) */
-    [data-testid="column"]:nth-of-type(1) {
-        flex: 10 !important;
-        min-width: 0px !important;
+    .item-info {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        flex-grow: 1;
+    }
+
+    .controls {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+    }
+
+    /* Standard HTML Link styling - much more reliable than st.button CSS */
+    .btn-link {
+        text-decoration: none !important;
+        font-size: 32px !important;
+        font-weight: 900 !important;
+        line-height: 1;
+        padding: 5px 10px;
     }
     
-    /* Columns 2 & 3: Buttons (Fixed small width) */
-    [data-testid="column"]:nth-of-type(2), 
-    [data-testid="column"]:nth-of-type(3) {
-        flex: 1 !important;
-        max-width: 45px !important;
-        min-width: 45px !important;
-    }
-
-    /* Button styling: No background, just bold colored text */
-    div[data-testid="stButton"] > button {
-        border: none !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        padding: 0px !important;
-        margin: 0px !important;
-        height: 40px !important;
-        width: 40px !important;
-    }
-
-    /* Plus color */
-    [data-testid="column"]:nth-of-type(2) button p {
-        color: #28a745 !important;
-        font-size: 28px !important;
-        font-weight: bold !important;
-    }
-
-    /* Minus color */
-    [data-testid="column"]:nth-of-type(3) button p {
-        color: #dc3545 !important;
-        font-size: 28px !important;
-        font-weight: bold !important;
-    }
-
+    .plus { color: #28a745 !important; }
+    .minus { color: #dc3545 !important; }
+    
     [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Connection
+# 3. Connection & Data Handling
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# Keep data in session state for speed
 if 'df' not in st.session_state:
     st.session_state.df = conn.read(ttl=0)
 
-# 4. Update Fragment
-@st.fragment
-def show_pantry_list(selected_loc, selected_cat):
-    df = st.session_state.df
-    items = df[(df['location'] == selected_loc) & (df['category'] == selected_cat)]
+# 4. Action Handler (This runs before the UI renders)
+params = st.query_params
+if "action" in params and "id" in params:
+    idx = int(params["id"])
+    if params["action"] == "add":
+        st.session_state.df.at[idx, 'item_quantity'] += 1
+    elif params["action"] == "rem" and st.session_state.df.at[idx, 'item_quantity'] > 0:
+        st.session_state.df.at[idx, 'item_quantity'] -= 1
     
-    for index, row in items.iterrows():
-        # Create 3 columns that the CSS above will force to stay in one row
-        cols = st.columns([10, 1, 1])
-        
-        with cols[0]:
-            # Standard HTML for the red quantity to ensure it works
-            st.markdown(f"""
-                <div style="display: flex; align-items: baseline; gap: 8px;">
-                    <span style="font-size: 16px; font-weight: 500;">{row['item_name']}</span>
-                    <span style="font-size: 16px; font-weight: bold; color: #ff4b4b;">{int(row['item_quantity'])}</span>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with cols[1]:
-            if st.button("+", key=f"add_{index}"):
-                st.session_state.df.at[index, 'item_quantity'] += 1
-                conn.update(data=st.session_state.df)
-                st.rerun(scope="fragment")
-                
-        with cols[2]:
-            if st.button("-", key=f"rem_{index}"):
-                if row['item_quantity'] > 0:
-                    st.session_state.df.at[index, 'item_quantity'] -= 1
-                    conn.update(data=st.session_state.df)
-                    st.rerun(scope="fragment")
-        
-        st.markdown("<hr style='margin: 5px 0; opacity: 0.1;'>", unsafe_allow_html=True)
+    # Update Google Sheets in the background
+    conn.update(data=st.session_state.df)
+    # Clear params and rerun to show the change immediately
+    st.query_params.clear()
+    st.rerun()
 
 # 5. UI Build
 st.title("🍎 Pantry")
 
-if not st.session_state.df.empty:
-    locs = sorted(st.session_state.df['location'].dropna().unique().tolist())
+df = st.session_state.df
+if not df.empty:
+    locs = sorted(df['location'].dropna().unique().tolist())
     sel_loc = st.selectbox("📍 Location", locs)
     
-    current_cats = sorted(st.session_state.df[st.session_state.df['location'] == sel_loc]['category'].dropna().unique().tolist())
-    sel_cat = st.pills("Category", current_cats, default=current_cats[0] if current_cats else None)
+    cat_df = df[df['location'] == sel_loc]
+    cats = sorted(cat_df['category'].dropna().unique().tolist())
+    sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
 
     st.divider()
-    show_pantry_list(sel_loc, sel_cat)
+
+    # 6. The List using pure HTML for the row
+    for index, row in df.iterrows():
+        if row['location'] == sel_loc and row['category'] == sel_cat:
+            st.markdown(f"""
+                <div class="pantry-row">
+                    <div class="item-info">
+                        <span style="font-size: 16px; font-weight: 500;">{row['item_name']}</span>
+                        <span style="font-size: 17px; font-weight: 900; color: #ff4b4b;">{int(row['item_quantity'])}</span>
+                    </div>
+                    <div class="controls">
+                        <a href="/?action=add&id={index}" target="_self" class="btn-link plus">+</a>
+                        <a href="/?action=rem&id={index}" target="_self" class="btn-link minus">−</a>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+else:
+    st.info("No items found.")
