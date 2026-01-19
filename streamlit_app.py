@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Home Inventory", layout="centered")
 
-# 1. INITIALIZE STATE (Linear & Safe)
+# 1. INITIALIZE STATE
 if "needs_sync" not in st.session_state:
     st.session_state["needs_sync"] = False
 
@@ -17,7 +17,7 @@ if "df" not in st.session_state:
         st.error("Connection failed.")
         st.stop()
 
-# 2. LOGIC FUNCTIONS
+# 2. LOGIC
 def update_qty(index, delta):
     st.session_state.df.at[index, 'item_quantity'] += delta
     if st.session_state.df.at[index, 'item_quantity'] < 0:
@@ -29,19 +29,21 @@ def safe_sync():
     st.session_state["needs_sync"] = False
     st.toast("✅ Saved!")
 
-# 3. CSS (The "No-Scroll" Lock)
+# 3. CSS (Making buttons wide and touch-friendly for mobile)
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
-    [data-testid="stHorizontalBlock"] { 
-        display: flex !important; 
-        flex-wrap: nowrap !important; 
-    }
+    
+    /* Make buttons wide enough for easy tapping but keep them side-by-side */
     div.stButton > button {
-        width: 100% !important;
-        height: 40px !important;
-        padding: 0 !important;
+        width: 80px !important;
+        height: 45px !important;
+        font-size: 20px !important;
+        font-weight: bold !important;
     }
+    
+    .item-header { font-size: 18px; margin-bottom: -10px; }
+    .qty-text { color: red; font-weight: bold; font-size: 20px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -60,35 +62,31 @@ sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
 
 st.divider()
 
-# 5. THE INSTANT FRAGMENT
-# This only reruns the list below, making taps feel instant.
+# 5. THE INSTANT LIST
 @st.fragment
-def render_inventory_list(location, category):
-    # Filter local state
+def render_list(location, category):
     items = st.session_state.df[
         (st.session_state.df['location'] == location) & 
         (st.session_state.df['category'] == category)
     ]
     
     for index, row in items.iterrows():
-        # Using fixed small ratios to force buttons onto the screen
-        c1, c2, c3 = st.columns([0.7, 0.15, 0.15])
+        # Display name and quantity on top
+        st.markdown(f"**{row['item_name']}** : <span class='qty-text'>{int(row['item_quantity'])}</span>", unsafe_allow_html=True)
         
-        with c1:
-            st.markdown(f"**{row['item_name']}** <span style='color:red; font-weight:bold;'>{int(row['item_quantity'])}</span>", unsafe_allow_html=True)
+        # Put buttons in a small row immediately underneath
+        # This prevents the "pushing to the right" effect entirely
+        btn_col1, btn_col2, _ = st.columns([1, 1, 2])
         
-        with c2:
-            # We use st.rerun(scope="fragment") for instant UI feedback
+        with btn_col1:
             if st.button("＋", key=f"p_{index}"):
                 update_qty(index, 1)
                 st.rerun(scope="fragment")
-                
-        with c3:
+        with btn_col2:
             if st.button("－", key=f"m_{index}"):
                 update_qty(index, -1)
                 st.rerun(scope="fragment")
         
-        st.markdown("<hr style='margin:2px 0; opacity:0.1;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:8px 0; opacity:0.1;'>", unsafe_allow_html=True)
 
-# Run the fragment
-render_inventory_list(sel_loc, sel_cat)
+render_list(sel_loc, sel_cat)
