@@ -9,15 +9,26 @@ st.set_page_config(page_title="Pantry Pilot", layout="centered")
 # Custom CSS to make the buttons look better on mobile
 st.markdown("""
     <style>
-    /* Make buttons more compact and centered */
-    div[data-testid="column"] {
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    /* Force columns to stay side-by-side on mobile */
+    [data-testid="column"] {
+        width: calc(10% - 1rem) !important;
+        flex: 1 1 auto !important;
+        min-width: unset !important;
     }
-    /* Simple divider color */
-    hr {
-        margin: 1rem 0 !important;
+    
+    /* Target the container of the columns to prevent wrapping */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+    }
+
+    /* Make buttons smaller and circular for a tighter fit */
+    div[data-testid="stButton"] > button {
+        border-radius: 50% !important;
+        width: 45px !important;
+        height: 45px !important;
+        padding: 0px !important;
+        margin: auto !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -85,41 +96,41 @@ if df is not None and not df.empty:
 
     st.divider()
 
- # Items Display
+# Items Display
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
             
-            # Use st.container to keep everything grouped
-            with st.container():
-                # Force columns to NOT stack by using a smaller gap
-                # we use a very large ratio for the name to squeeze the buttons
-                c1, c2, c3, c4 = st.columns([4, 1, 1.2, 1.2], gap="small", vertical_alignment="center")
-                
-                with c1:
-                    st.markdown(f"**{row['item_name']}**")
-                
-                with c2:
-                    # Use markdown to keep the number small and inline
-                    st.markdown(f"**{int(row['item_quantity'])}**")
-                
-                with c3:
-                    if st.button("🟢", key=f"add_{index}", use_container_width=True):
-                        df.at[index, 'item_quantity'] += 1
-                        df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
+            # Using specific column sizes
+            # 5 parts for Name, 1 for Qty, 1 for Plus, 1 for Minus
+            c1, c2, c3, c4 = st.columns([5, 1, 1.2, 1.2])
+            
+            with c1:
+                # Use "no-wrap" to keep text on one line or it will stretch the row
+                st.markdown(f"<div style='font-size: 14px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{row['item_name']}</div>", unsafe_allow_html=True)
+            
+            with c2:
+                st.markdown(f"**{int(row['item_quantity'])}**")
+            
+            with c3:
+                if st.button("🟢", key=f"add_{index}"):
+                    df.at[index, 'item_quantity'] += 1
+                    df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
+                    conn.update(data=df)
+                    st.rerun()
+            
+            with c4:
+                if st.button("🔴", key=f"rem_{index}"):
+                    if row['item_quantity'] > 0:
+                        df.at[index, 'item_quantity'] -= 1
+                        df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
                         conn.update(data=df)
                         st.rerun()
-                
-                with c4:
-                    if st.button("🔴", key=f"rem_{index}", use_container_width=True):
-                        if row['item_quantity'] > 0:
-                            df.at[index, 'item_quantity'] -= 1
-                            df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
-                            conn.update(data=df)
-                            st.rerun()
-                
-                # Note stays on its own small line underneath if it exists
-                if pd.notna(row['note']) and str(row['note']).strip() != "":
-                    st.caption(f"📝 {row['note']}")
+            
+            # Note stays underneath
+            if pd.notna(row['note']) and str(row['note']).strip() != "":
+                st.caption(f"📝 {row['note']}")
+            
+            st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
                 
             st.divider()
 else:
