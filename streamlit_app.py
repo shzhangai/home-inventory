@@ -3,6 +3,21 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
+st.markdown("""
+    <style>
+    /* Add button styling */
+    div[data-testid="stButton"] button[key^="add_"] {
+        background-color: #28a745;
+        color: white;
+    }
+    /* Remove button styling */
+    div[data-testid="stButton"] button[key^="rem_"] {
+        background-color: #dc3545;
+        color: white;
+    }
+    </style>
+""", unsafe_content_compatible=True)
+
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
