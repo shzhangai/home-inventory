@@ -9,27 +9,23 @@ st.set_page_config(page_title="Pantry Pilot", layout="centered")
 # Custom CSS to make the buttons look better on mobile
 st.markdown("""
     <style>
-    /* 1. Remove padding between columns to save space */
-    [data-testid="column"] {
-        padding: 0px 2px !important;
-        flex: unset !important;
-        min-width: unset !important;
+    /* Remove huge gaps between elements */
+    [data-testid="stVerticalBlock"] {
+        gap: 0rem !important;
     }
-    
-    /* 2. Ensure the container takes exactly 100% width with no padding */
-    [data-testid="stHorizontalBlock"] {
-        width: 100% !important;
-        gap: 0px !important;
-        flex-wrap: nowrap !important;
+    /* Squeeze the main container padding */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
     }
-
-    /* 3. Tighten up the buttons */
+    /* Make buttons shorter to save vertical space */
     div[data-testid="stButton"] > button {
-        border-radius: 8px !important;
-        width: 40px !important;
-        height: 35px !important;
-        padding: 0px !important;
-        border: 1px solid #ddd !important;
+        height: 30px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+        margin-top: -45px !important; /* This pulls the buttons UP into the name row */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -101,43 +97,39 @@ if df is not None and not df.empty:
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
             
-            # We use a container to keep the row tight
-            with st.container():
-                # We use only 3 columns: Name, Qty, and a single column for BOTH buttons
-                # This prevents Streamlit from adding gaps between the buttons
-                c1, c2, c3 = st.columns([4, 1, 2], gap="small", vertical_alignment="center")
-                
-                with c1:
-                    # Item Name
-                    st.markdown(f"**{row['item_name']}**")
-                
-                with c2:
-                    # Quantity (Bold and centered)
-                    st.markdown(f"<div style='text-align: center;'>{int(row['item_quantity'])}</div>", unsafe_allow_html=True)
-                
-                with c3:
-                    # We put both buttons in one column to keep them touching
-                    btn_col1, btn_col2 = st.columns(2)
-                    with btn_col1:
-                        if st.button("🟢", key=f"add_{index}"):
-                            df.at[index, 'item_quantity'] += 1
-                            df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
-                            conn.update(data=df)
-                            st.rerun()
-                    with btn_col2:
-                        if st.button("🔴", key=f"rem_{index}"):
-                            if row['item_quantity'] > 0:
-                                df.at[index, 'item_quantity'] -= 1
-                                df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
-                                conn.update(data=df)
-                                st.rerun()
-                
-                # Note underneath
-                if pd.notna(row['note']) and str(row['note']).strip() != "":
-                    st.caption(f"📝 {row['note']}")
+            # This creates a single line container for everything
+            # We use flex-box to align them perfectly and remove gaps
+            item_html = f"""
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee;">
+                <div style="flex: 3; font-weight: bold; font-size: 16px;">{row['item_name']}</div>
+                <div style="flex: 1; text-align: center; font-size: 18px; font-weight: bold; color: #555;">{int(row['item_quantity'])}</div>
+                <div style="flex: 2; display: flex; justify-content: flex-end; gap: 5px;">
+                    </div>
+            </div>
+            """
+            st.markdown(item_html, unsafe_allow_html=True)
             
-            st.markdown("<hr style='margin: 2px 0; opacity: 0.2;'>", unsafe_allow_html=True)
-else:
+            # Since Streamlit buttons can't live inside raw HTML easily, 
+            # we use columns ONLY for the buttons, but we make them tiny.
+            # This 'floating' column trick places them over the 'empty' space we left above.
+            btn_c1, btn_c2, btn_c3 = st.columns([6, 1.2, 1.2]) 
+            with btn_c2:
+                if st.button("🟢", key=f"add_{index}", use_container_width=True):
+                    df.at[index, 'item_quantity'] += 1
+                    df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
+                    conn.update(data=df)
+                    st.rerun()
+            with btn_c3:
+                if st.button("🔴", key=f"rem_{index}", use_container_width=True):
+                    if row['item_quantity'] > 0:
+                        df.at[index, 'item_quantity'] -= 1
+                        df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
+                        conn.update(data=df)
+                        st.rerun()
+
+            # Note (if exists)
+            if pd.notna(row['note']) and str(row['note']).strip() != "":
+                st.caption(f"📝 {row['note']}")
     st.info("Your pantry is empty. Add your first item!")
     if st.button("➕ Add First Item"):
         add_item_dialog("", "", [], [])
