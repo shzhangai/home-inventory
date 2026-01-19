@@ -88,36 +88,39 @@ if df is not None and not df.empty:
  # Items Display
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
-            # Row 1: Name, Qty, Plus, Minus
-            c1, c2, c3, c4 = st.columns([4, 1.5, 1.5, 1.5])
             
-            with c1:
-                st.markdown(f"**{row['item_name']}**")
-            
-            with c2:
-                # Big number for Qty
-                st.markdown(f"### {int(row['item_quantity'])}")
-            
-            with c3:
-                # 'type="primary"' often makes the button a solid color
-                if st.button("➕", key=f"add_{index}", use_container_width=True, type="primary"):
-                    df.at[index, 'item_quantity'] += 1
-                    df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
-                    conn.update(data=df)
-                    st.rerun()
-            
-            with c4:
-                if st.button("➖", key=f"rem_{index}", use_container_width=True):
-                    if row['item_quantity'] > 0:
-                        df.at[index, 'item_quantity'] -= 1
-                        df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
+            # Use st.container to keep everything grouped
+            with st.container():
+                # Force columns to NOT stack by using a smaller gap
+                # we use a very large ratio for the name to squeeze the buttons
+                c1, c2, c3, c4 = st.columns([4, 1, 1.2, 1.2], gap="small", vertical_alignment="center")
+                
+                with c1:
+                    st.markdown(f"**{row['item_name']}**")
+                
+                with c2:
+                    # Use markdown to keep the number small and inline
+                    st.markdown(f"**{int(row['item_quantity'])}**")
+                
+                with c3:
+                    if st.button("🟢", key=f"add_{index}", use_container_width=True):
+                        df.at[index, 'item_quantity'] += 1
+                        df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
                         conn.update(data=df)
                         st.rerun()
-            
-            # Row 2: Note (Only if it exists)
-            if pd.notna(row['note']) and str(row['note']).strip() != "":
-                st.caption(f"📝 {row['note']}")
-            
+                
+                with c4:
+                    if st.button("🔴", key=f"rem_{index}", use_container_width=True):
+                        if row['item_quantity'] > 0:
+                            df.at[index, 'item_quantity'] -= 1
+                            df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
+                            conn.update(data=df)
+                            st.rerun()
+                
+                # Note stays on its own small line underneath if it exists
+                if pd.notna(row['note']) and str(row['note']).strip() != "":
+                    st.caption(f"📝 {row['note']}")
+                
             st.divider()
 else:
     st.info("Your pantry is empty. Add your first item!")
