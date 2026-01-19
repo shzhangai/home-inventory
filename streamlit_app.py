@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Home Inventory", layout="centered")
 
-# 1. INITIALIZE STATE
+# 1. INITIALIZE STATE (Linear & Safe)
 if "needs_sync" not in st.session_state:
     st.session_state["needs_sync"] = False
 
@@ -12,74 +12,83 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 if "df" not in st.session_state:
     try:
-        # Load the data
-        fetched_df = conn.read(ttl=0)
-        # CRITICAL SAFETY: Only load if the sheet isn't actually empty
-        if fetched_df is not None and not fetched_df.empty:
-            st.session_state.df = fetched_df
-        else:
-            st.error("The Google Sheet appears to be empty. Please restore it from Version History.")
-            st.stop()
+        st.session_state.df = conn.read(ttl=0)
     except Exception as e:
-        st.error(f"Connection failed: {e}")
+        st.error("Connection failed.")
         st.stop()
 
-# 2. THE SAFETY SYNC FUNCTION
-def safe_sync_to_cloud():
-    current_df = st.session_state.df
-    
-    # SAFETY GATE: Never save if the dataframe is empty or missing columns
-    if current_df is None or current_df.empty or len(current_df.columns) < 2:
-        st.error("🚨 SYNC BLOCKED: The data is empty. Restoring from cloud instead of saving.")
-        st.session_state.df = conn.read(ttl=0)
-        st.session_state["needs_sync"] = False
-    else:
-        conn.update(data=current_df)
-        st.session_state["needs_sync"] = False
-        st.toast("✅ Cloud Updated Safely!")
-
+# 2. LOGIC FUNCTIONS
 def update_qty(index, delta):
     st.session_state.df.at[index, 'item_quantity'] += delta
     if st.session_state.df.at[index, 'item_quantity'] < 0:
         st.session_state.df.at[index, 'item_quantity'] = 0
     st.session_state["needs_sync"] = True
 
-# 3. MOBILE CSS
+def safe_sync():
+    conn.update(data=st.session_state.df)
+    st.session_state["needs_sync"] = False
+    st.toast("✅ Saved!")
+
+# 3. CSS (The "No-Scroll" Lock)
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
-    [data-testid="stHorizontalBlock"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; }
-    [data-testid="column"]:nth-of-type(1) { flex: 8 !important; min-width: 0px !important; }
-    [data-testid="column"]:nth-of-type(2), [data-testid="column"]:nth-of-type(3) { flex: 1 !important; max-width: 45px !important; min-width: 45px !important; }
-    button { height: 40px !important; width: 40px !important; padding: 0px !important; font-size: 20px !important; }
+    [data-testid="stHorizontalBlock"] { 
+        display: flex !important; 
+        flex-wrap: nowrap !important; 
+    }
+    div.stButton > button {
+        width: 100% !important;
+        height: 40px !important;
+        padding: 0 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# 4. UI
+# 4. UI TOP BAR
 st.title("🏠 Home Inventory")
 
 if st.session_state.get("needs_sync", False):
-    # Uses the new Safe Sync function
-    st.button("💾 SAVE TO CLOUD", on_click=safe_sync_to_cloud, use_container_width=True, type="primary")
+    st.button("💾 SAVE TO CLOUD", on_click=safe_sync, use_container_width=True, type="primary")
 
 df = st.session_state.df
-if df is not None and not df.empty:
-    all_locs = sorted(df['location'].dropna().unique().tolist())
-    sel_loc = st.selectbox("📍 Location", all_locs)
-    
-    cat_options = sorted(df[df['location'] == sel_loc]['category'].dropna().unique().tolist())
-    sel_cat = st.pills("Category", cat_options, default=cat_options[0] if cat_options else None)
+locs = sorted(df['location'].dropna().unique().tolist())
+sel_loc = st.selectbox("📍 Location", locs)
 
-    st.divider()
+cats = sorted(df[df['location'] == sel_loc]['category'].dropna().unique().tolist())
+sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
 
-    items = df[(df['location'] == sel_loc) & (df['category'] == sel_cat)]
+st.divider()
+
+# 5. THE INSTANT FRAGMENT
+# This only reruns the list below, making taps feel instant.
+@st.fragment
+def render_inventory_list(location, category):
+    # Filter local state
+    items = st.session_state.df[
+        (st.session_state.df['location'] == location) & 
+        (st.session_state.df['category'] == category)
+    ]
     
     for index, row in items.iterrows():
-        c1, c2, c3 = st.columns([8, 1, 1])
+        # Using fixed small ratios to force buttons onto the screen
+        c1, c2, c3 = st.columns([0.7, 0.15, 0.15])
+        
         with c1:
-            st.markdown(f"**{row['item_name']}** <span style='color:red; font-weight:bold; margin-left:8px;'>{int(row['item_quantity'])}</span>", unsafe_allow_html=True)
+            st.markdown(f"**{row['item_name']}** <span style='color:red; font-weight:bold;'>{int(row['item_quantity'])}</span>", unsafe_allow_html=True)
+        
         with c2:
-            st.button("＋", key=f"add_{index}", on_click=update_qty, args=(index, 1))
+            # We use st.rerun(scope="fragment") for instant UI feedback
+            if st.button("＋", key=f"p_{index}"):
+                update_qty(index, 1)
+                st.rerun(scope="fragment")
+                
         with c3:
-            st.button("－", key=f"rem_{index}", on_click=update_qty, args=(index, -1))
-        st.markdown("<hr style='margin:4px 0; opacity:0.1;'>", unsafe_allow_html=True)
+            if st.button("－", key=f"m_{index}"):
+                update_qty(index, -1)
+                st.rerun(scope="fragment")
+        
+        st.markdown("<hr style='margin:2px 0; opacity:0.1;'>", unsafe_allow_html=True)
+
+# Run the fragment
+render_inventory_list(sel_loc, sel_cat)
