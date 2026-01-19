@@ -6,12 +6,34 @@ from datetime import datetime
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 2. THE CSS: Optimized for Speed (Buttons) and Layout (S24+)
+# 2. THE CSS: Restricting styles to only the list buttons
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
     
-    /* Force columns to stay in a single row without stacking */
+    /* Only target buttons that are inside our horizontal rows */
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-size: 26px !important;
+        font-weight: bold !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        height: 35px !important;
+        width: 35px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+
+    /* Keep the main 'Add New Item' and 'Save' buttons looking normal */
+    button[kind="primary"], button[kind="secondary"] {
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    /* Force columns to stay in a single row for the items */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
@@ -30,31 +52,8 @@ st.markdown("""
         max-width: 45px !important; 
         min-width: 40px !important;
     }
-
-    /* Target standard buttons to make them look like plain colored text */
-    div[data-testid="stButton"] > button {
-        border: none !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        font-size: 28px !important;
-        font-weight: bold !important;
-        padding: 0px !important;
-        margin: 0px !important;
-        height: 35px !important;
-        width: 35px !important;
-    }
-
-    /* Remove the hover box/grey background */
-    div[data-testid="stButton"] > button:hover, 
-    div[data-testid="stButton"] > button:active, 
-    div[data-testid="stButton"] > button:focus {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-
-    /* Specific colors for our keys */
-    [data-testid="stButton"] button p { font-size: 28px !important; }
+    
+    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -78,7 +77,7 @@ def add_item_dialog(current_loc, current_cat, all_locs, global_cats):
     
     new_note = st.text_area("Note (Optional)")
 
-    if st.button("Save Item", use_container_width=True):
+    if st.button("Save to Inventory"):
         if new_name and final_loc and final_cat:
             new_row = {
                 "category": final_cat, "item_name": new_name, "item_quantity": new_qty,
@@ -102,6 +101,7 @@ if df is not None and not df.empty:
     default_cat = cats_in_loc[0] if cats_in_loc else ""
     selected_cat = st.pills("Category", cats_in_loc, default=default_cat)
 
+    # Restoring the "Add New Item" button with normal styling
     if st.button("➕ Add New Item", use_container_width=True):
         add_item_dialog(selected_loc, selected_cat, global_locations, sorted(df['category'].dropna().unique().tolist()))
 
@@ -121,21 +121,21 @@ if df is not None and not df.empty:
                 """, unsafe_allow_html=True)
             
             with c2:
-                # Green Plus
+                # Forces THIS specific button to be green
+                st.markdown(f"<style>div[data-testid='column']:nth-of-type(2) button {{ color: #28a745 !important; }}</style>", unsafe_allow_html=True)
                 if st.button("+", key=f"add_{index}"):
                     df.at[index, 'item_quantity'] += 1
                     conn.update(data=df)
                     st.rerun()
-                st.markdown(f"<style>div[data-testid='stButton'] > button[key='add_{index}'] {{ color: #28a745 !important; }}</style>", unsafe_allow_html=True)
             
             with c3:
-                # Red Minus
+                # Forces THIS specific button to be red
+                st.markdown(f"<style>div[data-testid='column']:nth-of-type(3) button {{ color: #dc3545 !important; }}</style>", unsafe_allow_html=True)
                 if st.button("-", key=f"rem_{index}"):
                     if row['item_quantity'] > 0:
                         df.at[index, 'item_quantity'] -= 1
                         conn.update(data=df)
                         st.rerun()
-                st.markdown(f"<style>div[data-testid='stButton'] > button[key='rem_{index}'] {{ color: #dc3545 !important; }}</style>", unsafe_allow_html=True)
 
             if pd.notna(row['note']) and str(row['note']).strip() != "":
                 st.markdown(f"<div style='font-size: 12px; color: gray; margin-top: -5px;'>📝 {row['note']}</div>", unsafe_allow_html=True)
