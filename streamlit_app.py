@@ -4,81 +4,71 @@ import pandas as pd
 
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# --- CSS: Minimal and focused only on the horizontal layout ---
+# 1. KILL ALL GAPS WITH CSS
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
+    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     
-    /* Forces columns to stay in a single row on mobile */
-    [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-        gap: 0px !important;
-    }
-
-    /* Column 1 (Name + Qty) takes 80% */
-    [data-testid="column"]:nth-of-type(1) { flex: 8 !important; }
-    
-    /* Columns 2 & 3 (Buttons) are restricted to stay close */
-    [data-testid="column"]:nth-of-type(2), 
-    [data-testid="column"]:nth-of-type(3) { 
-        flex: 1 !important; 
-        max-width: 45px !important; 
-        min-width: 40px !important;
-    }
-
-    /* Target the text inside the tertiary buttons to ensure it's black/visible */
-    button[kind="tertiary"] {
-        color: black !important;
+    /* Style the links so they look like big, bold text signs */
+    .pantry-btn {
+        text-decoration: none !important;
         font-size: 24px !important;
         font-weight: bold !important;
-        padding: 0px !important;
+        color: #007bff !important; /* Blue color so you know it's clickable */
+        padding: 0 10px !important;
+        display: inline-block;
     }
-    
-    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
+    .pantry-btn:active { color: #ff4b4b !important; }
     </style>
 """, unsafe_allow_html=True)
 
+# 2. DATA CONNECTION
 conn = st.connection("gsheets", type=GSheetsConnection)
 df = conn.read(ttl=0)
+
+# 3. CLICK DETECTION LOGIC
+# This checks if a + or - was clicked in the URL
+params = st.query_params
+if "action" in params and "id" in params:
+    idx = int(params["id"])
+    action = params["action"]
+    
+    if action == "add":
+        df.at[idx, 'item_quantity'] += 1
+    elif action == "rem" and df.at[idx, 'item_quantity'] > 0:
+        df.at[idx, 'item_quantity'] -= 1
+        
+    conn.update(data=df)
+    st.query_params.clear() # Reset the URL
+    st.rerun()
 
 st.title("🍎 Pantry")
 
 if df is not None and not df.empty:
-    # Filter logic (simplified for brevity)
+    # Basic filters
     g_locs = sorted(df['location'].dropna().unique().tolist())
     selected_loc = st.selectbox("📍 Location", g_locs)
     loc_df = df[df['location'] == selected_loc]
-    
-    st.markdown("---")
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 4. THE ROW DISPLAY (HTML ONLY)
     for index, row in loc_df.iterrows():
-        # Using 3 columns: [Name+Qty, Plus, Minus]
-        c1, c2, c3 = st.columns([8, 1, 1])
-        
-        with c1:
-            # Inline Name and Qty
-            st.markdown(f"""
-                <div style="display: flex; align-items: baseline; gap: 8px;">
-                    <span style="font-size: 15px;">{row['item_name']}</span>
-                    <span style="font-size: 16px; font-weight: bold; color: #ff4b4b;">{int(row['item_quantity'])}</span>
+        # We build one single HTML line for Name, Qty, +, and -
+        # This ensures they are literally right next to each other
+        st.markdown(f"""
+            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                <div style="flex-grow: 1; font-size: 15px;">
+                    <b>{row['item_name']}</b> 
+                    <span style="color: #ff4b4b; margin-left: 10px; font-weight: 800;">{int(row['item_quantity'])}</span>
                 </div>
-            """, unsafe_allow_html=True)
-        
-        with c2:
-            # use type="tertiary" for a plain text button that is actually visible
-            if st.button("+", key=f"add_{index}", type="tertiary"):
-                df.at[index, 'item_quantity'] += 1
-                conn.update(data=df)
-                st.rerun()
-        
-        with c3:
-            if st.button("-", key=f"rem_{index}", type="tertiary"):
-                if row['item_quantity'] > 0:
-                    df.at[index, 'item_quantity'] -= 1
-                    conn.update(data=df)
-                    st.rerun()
+                <div style="display: flex; gap: 20px;">
+                    <a href="/?action=add&id={index}" target="_self" class="pantry-btn">+</a>
+                    <a href="/?action=rem&id={index}" target="_self" class="pantry-btn">−</a>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown("<hr style='margin: 0px; opacity: 0.1;'>", unsafe_allow_html=True)
+else:
+    st.info("Pantry is empty!")
