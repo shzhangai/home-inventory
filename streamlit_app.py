@@ -130,6 +130,8 @@ if df is not None and not df.empty:
             # Note (if exists)
             if pd.notna(row['note']) and str(row['note']).strip() != "":
                 st.caption(f"📝 {row['note']}")
+
+    else:
     st.info("Your pantry is empty. Add your first item!")
     if st.button("➕ Add First Item"):
-        add_item_dialog("", "", [], [])
+
