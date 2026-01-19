@@ -9,25 +9,18 @@ st.set_page_config(page_title="Pantry Pilot", layout="centered")
 # 2. THE "GAP KILLER" CSS
 st.markdown("""
     <style>
-    /* 1. Squeeze the main container padding */
     .block-container {
         padding: 1rem 0.5rem !important;
         max-width: 100% !important;
     }
-    
-    /* 2. Remove huge vertical gaps between Streamlit elements */
     [data-testid="stVerticalBlock"] {
         gap: 0rem !important;
     }
-
-    /* 3. Force columns to stay side-by-side and remove their padding */
     [data-testid="column"] {
         padding: 0px 2px !important;
         min-width: 0px !important;
         flex: 1 1 auto !important;
     }
-
-    /* 4. Make the buttons small, circular, and centered */
     div[data-testid="stButton"] > button {
         height: 38px !important;
         width: 38px !important;
@@ -37,8 +30,6 @@ st.markdown("""
         display: block !important;
         border: 1px solid #f0f0f0 !important;
     }
-
-    /* 5. Tighten the Pills/Category selector */
     [data-testid="stElementContainer"] {
         margin-bottom: 2px !important;
     }
@@ -74,6 +65,7 @@ def add_item_dialog(current_loc, current_cat, all_locs, global_cats):
             }
             updated_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             conn.update(data=updated_df)
+            st.success("Added!")
             st.rerun()
 
 # 5. Main App UI
@@ -100,13 +92,36 @@ if df is not None and not df.empty:
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
             
-            # Row Container
             with st.container():
-                # We use 3 columns: [Text Block, Plus Button, Minus Button]
-                # Ratio 5:1:1 ensures the name+qty gets most of the space
                 c1, c2, c3 = st.columns([5, 1, 1], vertical_alignment="center")
                 
                 with c1:
-                    # This HTML flexbox keeps Name and Qty close together with NO gap
-                    st.markdown(f"""
-                        <div style="display: flex; align-items: center; justify
+                    # Using an f-string with single quotes inside to avoid triple-quote confusion
+                    item_label = f'<div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">' \
+                                 f'<div style="font-weight: bold; font-size: 14px; overflow: hidden;">{row["item_name"]}</div>' \
+                                 f'<div style="font-weight: bold; font-size: 16px; padding-right: 10px;">{int(row["item_quantity"])}</div>' \
+                                 f'</div>'
+                    st.markdown(item_label, unsafe_allow_html=True)
+                
+                with c2:
+                    if st.button("🟢", key=f"add_{index}", use_container_width=True):
+                        df.at[index, 'item_quantity'] += 1
+                        conn.update(data=df)
+                        st.rerun()
+                
+                with c3:
+                    if st.button("🔴", key=f"rem_{index}", use_container_width=True):
+                        if row['item_quantity'] > 0:
+                            df.at[index, 'item_quantity'] -= 1
+                            conn.update(data=df)
+                            st.rerun()
+
+                if pd.notna(row['note']) and str(row['note']).strip() != "":
+                    st.markdown(f"<div style='font-size: 12px; color: gray; margin-top: -5px;'>📝 {row['note']}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<div style='border-bottom: 1px solid #f0f2f6; margin-bottom: 4px; margin-top: 4px;'></div>", unsafe_allow_html=True)
+
+else:
+    st.info("Pantry is empty!")
+    if st.button("➕ Add First Item"):
+        add_item_dialog("", "", [], [])
