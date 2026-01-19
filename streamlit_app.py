@@ -9,26 +9,27 @@ st.set_page_config(page_title="Pantry Pilot", layout="centered")
 # Custom CSS to make the buttons look better on mobile
 st.markdown("""
     <style>
-    /* Force columns to stay side-by-side on mobile */
+    /* 1. Remove padding between columns to save space */
     [data-testid="column"] {
-        width: calc(10% - 1rem) !important;
-        flex: 1 1 auto !important;
+        padding: 0px 2px !important;
+        flex: unset !important;
         min-width: unset !important;
     }
     
-    /* Target the container of the columns to prevent wrapping */
+    /* 2. Ensure the container takes exactly 100% width with no padding */
     [data-testid="stHorizontalBlock"] {
+        width: 100% !important;
+        gap: 0px !important;
         flex-wrap: nowrap !important;
-        align-items: center !important;
     }
 
-    /* Make buttons smaller and circular for a tighter fit */
+    /* 3. Tighten up the buttons */
     div[data-testid="stButton"] > button {
-        border-radius: 50% !important;
-        width: 45px !important;
-        height: 45px !important;
+        border-radius: 8px !important;
+        width: 40px !important;
+        height: 35px !important;
         padding: 0px !important;
-        margin: auto !important;
+        border: 1px solid #ddd !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -100,37 +101,39 @@ if df is not None and not df.empty:
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
             
-            # Using specific column sizes
-            # 5 parts for Name, 1 for Qty, 1 for Plus, 1 for Minus
-            c1, c2, c3, c4 = st.columns([5, 1, 1.2, 1.2])
+            # Ratios changed to 3.5 (Name), 0.8 (Qty), 1 (Plus), 1 (Minus)
+            # This 'gap="small"' helps keep them close
+            c1, c2, c3, c4 = st.columns([3.5, 0.8, 1, 1], gap="small", vertical_alignment="center")
             
             with c1:
-                # Use "no-wrap" to keep text on one line or it will stretch the row
-                st.markdown(f"<div style='font-size: 14px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{row['item_name']}</div>", unsafe_allow_html=True)
+                # We allow wrapping here so if a name is long, it goes to row 2 
+                # instead of pushing the buttons off-screen
+                st.markdown(f"<div style='font-size: 14px; line-height: 1.2; font-weight: 500;'>{row['item_name']}</div>", unsafe_allow_html=True)
             
             with c2:
-                st.markdown(f"**{int(row['item_quantity'])}**")
+                # Centered number
+                st.markdown(f"<div style='text-align: center;'><b>{int(row['item_quantity'])}</b></div>", unsafe_allow_html=True)
             
             with c3:
-                if st.button("🟢", key=f"add_{index}"):
+                if st.button("🟢", key=f"add_{index}", use_container_width=True):
                     df.at[index, 'item_quantity'] += 1
                     df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
                     conn.update(data=df)
                     st.rerun()
             
             with c4:
-                if st.button("🔴", key=f"rem_{index}"):
+                if st.button("🔴", key=f"rem_{index}", use_container_width=True):
                     if row['item_quantity'] > 0:
                         df.at[index, 'item_quantity'] -= 1
                         df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
                         conn.update(data=df)
                         st.rerun()
             
-            # Note stays underneath
+            # Note row
             if pd.notna(row['note']) and str(row['note']).strip() != "":
                 st.caption(f"📝 {row['note']}")
             
-            st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 4px 0; opacity: 0.3;'>", unsafe_allow_html=True)
                 
             st.divider()
 else:
