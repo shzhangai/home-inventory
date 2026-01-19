@@ -2,73 +2,64 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# 1. Page Config
 st.set_page_config(page_title="Pantry", layout="centered")
 
-# 2. Minimal CSS to remove extra padding
+# 1. CSS: Forcing the button to look like a simple flat row
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
-    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
+    
+    /* Make buttons full width but very short and flat */
+    div.stButton > button {
+        width: 100% !important;
+        border: 1px solid #eee !important;
+        background-color: white !important;
+        padding: 5px 10px !important;
+        height: auto !important;
+        text-align: left !important;
+    }
+    
+    /* Ensure the text inside the button is spread out */
+    div.stButton p {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        font-size: 16px !important;
+        margin: 0 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Connection & Session State
 conn = st.connection("gsheets", type=GSheetsConnection)
 if 'df' not in st.session_state:
     st.session_state.df = conn.read(ttl=0)
 
-# 4. Main UI
+# 2. THE UI
 st.title("🍎 Pantry Pilot")
 
 df = st.session_state.df
-
 if not df.empty:
-    # Filter Controls
     locs = sorted(df['location'].dropna().unique().tolist())
     sel_loc = st.selectbox("📍 Location", locs)
     
-    cat_df = df[df['location'] == sel_loc]
-    cats = sorted(cat_df['category'].dropna().unique().tolist())
+    cats = sorted(df[df['location'] == sel_loc]['category'].dropna().unique().tolist())
     sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
 
-    # Filter the data for display
-    display_df = df[(df['location'] == sel_loc) & (df['category'] == sel_cat)].copy()
+    st.divider()
+
+    # 3. THE LIST: Every row is a pair of buttons
+    items = df[(df['location'] == sel_loc) & (df['category'] == sel_cat)]
     
-    # We add a "Change" column to handle the +/- logic without big spaces
-    display_df = display_df[['item_name', 'item_quantity']]
-
-    # 5. THE DATA EDITOR: This is the most stable layout for mobile
-    # It allows you to tap the number and type, OR use the tiny +/- arrows
-    edited_df = st.data_editor(
-        display_df,
-        column_config={
-            "item_name": st.column_config.TextColumn("Item", width="large", disabled=True),
-            "item_quantity": st.column_config.NumberColumn(
-                "Qty",
-                help="Tap to change",
-                min_value=0,
-                step=1,
-                format="%d",
-                width="small"
-            ),
-        },
-        hide_index=True,
-        use_container_width=True,
-        key="pantry_editor"
-    )
-
-    # 6. Save Logic
-    if st.button("💾 Sync Changes", use_container_width=True, type="primary"):
-        # Merge edited values back to the main session state
-        for idx, row in edited_df.iterrows():
-            item_name = row['item_name']
-            new_qty = row['item_quantity']
-            st.session_state.df.loc[st.session_state.df['item_name'] == item_name, 'item_quantity'] = new_qty
+    for index, row in items.iterrows():
+        qty = int(row['item_quantity'])
         
-        conn.update(data=st.session_state.df)
-        st.success("Saved!")
-        st.rerun()
-
-else:
-    st.info("Pantry is empty.")
+        # We put both actions into simple, full-width rows.
+        # This is impossible to "stack" because it's already a full row.
+        # Button 1: Name, Quantity, and the PLUS sign
+        if st.button(f"{row['item_name']}       {qty}       ＋", key=f"add_{index}"):
+            st.session_state.df.at[index, 'item_quantity'] += 1
+            conn.update(data=st.session_state.df)
+            st.rerun()
+            
+        # Button 2: A small "Minus" row right under the main one
+        if st.button(f"
