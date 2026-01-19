@@ -137,8 +137,3 @@ else:
     st.info("Pantry is empty!")
     if st.button("➕ Add First Item"):
         add_item_dialog("", "", [], [])
-
-else:
-    st.info("Pantry is empty!")
-    if st.button("➕ Add First Item"):
-        add_item_dialog("", "", [], [])
