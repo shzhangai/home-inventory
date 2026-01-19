@@ -29,25 +29,7 @@ def safe_sync():
     st.session_state["needs_sync"] = False
     st.toast("✅ Saved!")
 
-# 3. CSS (Making buttons wide and touch-friendly for mobile)
-st.markdown("""
-    <style>
-    .block-container { padding: 1rem 0.5rem !important; }
-    
-    /* Make buttons wide enough for easy tapping but keep them side-by-side */
-    div.stButton > button {
-        width: 80px !important;
-        height: 45px !important;
-        font-size: 20px !important;
-        font-weight: bold !important;
-    }
-    
-    .item-header { font-size: 18px; margin-bottom: -10px; }
-    .qty-text { color: red; font-weight: bold; font-size: 20px; }
-    </style>
-""", unsafe_allow_html=True)
-
-# 4. UI TOP BAR
+# 3. UI TOP BAR
 st.title("🏠 Home Inventory")
 
 if st.session_state.get("needs_sync", False):
@@ -62,7 +44,8 @@ sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
 
 st.divider()
 
-# 5. THE INSTANT LIST
+# 4. THE ROW RENDERER
+# We are abandoning st.columns and using a custom layout
 @st.fragment
 def render_list(location, category):
     items = st.session_state.df[
@@ -71,22 +54,47 @@ def render_list(location, category):
     ]
     
     for index, row in items.iterrows():
-        # Display name and quantity on top
-        st.markdown(f"**{row['item_name']}** : <span class='qty-text'>{int(row['item_quantity'])}</span>", unsafe_allow_html=True)
+        # Using an inner container with custom CSS to prevent any wrapping
+        # 'nowrap' is the key instruction here.
+        st.markdown(
+            f"""
+            <div style="
+                display: flex;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                padding: 10px 0;
+                border-bottom: 1px solid #eee;
+            ">
+                <div style="flex-grow: 1; min-width: 0; margin-right: 10px;">
+                    <span style="font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">
+                        {row['item_name']}
+                    </span>
+                </div>
+                <div style="color: red; font-weight: bold; font-size: 1.2rem; margin-right: 15px; flex-shrink: 0;">
+                    {int(row['item_quantity'])}
+                </div>
+                <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                    </div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
         
-        # Put buttons in a small row immediately underneath
-        # This prevents the "pushing to the right" effect entirely
-        btn_col1, btn_col2, _ = st.columns([1, 1, 2])
-        
-        with btn_col1:
+        # We place the buttons immediately below the HTML label to keep them in the flow
+        # but we use columns that are SO small they won't trigger a wrap.
+        b_col1, b_col2, b_filler = st.columns([0.2, 0.2, 0.6])
+        with b_col1:
             if st.button("＋", key=f"p_{index}"):
                 update_qty(index, 1)
                 st.rerun(scope="fragment")
-        with btn_col2:
+        with b_col2:
             if st.button("－", key=f"m_{index}"):
                 update_qty(index, -1)
                 st.rerun(scope="fragment")
         
-        st.markdown("<hr style='margin:8px 0; opacity:0.1;'>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:-45px;'></div>", unsafe_allow_html=True)
 
 render_list(sel_loc, sel_cat)
