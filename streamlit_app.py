@@ -6,38 +6,55 @@ from datetime import datetime
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 2. THE CSS: Fixed colors and restored layout
+# 2. THE CSS: Optimized for Speed (Buttons) and Layout (S24+)
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
-    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     
-    /* Plus Button Color */
-    .btn-plus {
-        text-decoration: none !important;
-        font-size: 30px !important;
+    /* Force columns to stay in a single row without stacking */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 0px !important;
+    }
+
+    /* Column 1 (Name + Qty) */
+    [data-testid="column"]:nth-of-type(1) { flex: 8 !important; }
+    
+    /* Columns 2 & 3 (The Buttons) */
+    [data-testid="column"]:nth-of-type(2), 
+    [data-testid="column"]:nth-of-type(3) { 
+        flex: 1 !important; 
+        max-width: 45px !important; 
+        min-width: 40px !important;
+    }
+
+    /* Target standard buttons to make them look like plain colored text */
+    div[data-testid="stButton"] > button {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-size: 28px !important;
         font-weight: bold !important;
-        color: #28a745 !important; /* Solid Green */
-        padding: 0 10px !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        height: 35px !important;
+        width: 35px !important;
     }
-    
-    /* Minus Button Color */
-    .btn-minus {
-        text-decoration: none !important;
-        font-size: 30px !important;
-        font-weight: bold !important;
-        color: #dc3545 !important; /* Solid Red */
-        padding: 0 10px !important;
+
+    /* Remove the hover box/grey background */
+    div[data-testid="stButton"] > button:hover, 
+    div[data-testid="stButton"] > button:active, 
+    div[data-testid="stButton"] > button:focus {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
-    
-    .item-row {
-        display: flex; 
-        align-items: center; 
-        justify-content: flex-start; 
-        margin-bottom: 8px; 
-        border-bottom: 1px solid #eee; 
-        padding-bottom: 5px;
-    }
+
+    /* Specific colors for our keys */
+    [data-testid="stButton"] button p { font-size: 28px !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -45,19 +62,7 @@ st.markdown("""
 conn = st.connection("gsheets", type=GSheetsConnection)
 df = conn.read(ttl=0)
 
-# 4. URL Click Logic
-params = st.query_params
-if "action" in params and "id" in params:
-    idx = int(params["id"])
-    if params["action"] == "add":
-        df.at[idx, 'item_quantity'] += 1
-    elif params["action"] == "rem" and df.at[idx, 'item_quantity'] > 0:
-        df.at[idx, 'item_quantity'] -= 1
-    conn.update(data=df)
-    st.query_params.clear()
-    st.rerun()
-
-# 5. Add Item Dialog
+# 4. Add Item Dialog
 @st.dialog("Add New Item")
 def add_item_dialog(current_loc, current_cat, all_locs, global_cats):
     new_name = st.text_input("Item Name")
@@ -73,7 +78,7 @@ def add_item_dialog(current_loc, current_cat, all_locs, global_cats):
     
     new_note = st.text_area("Note (Optional)")
 
-    if st.button("Save to Inventory", use_container_width=True):
+    if st.button("Save Item", use_container_width=True):
         if new_name and final_loc and final_cat:
             new_row = {
                 "category": final_cat, "item_name": new_name, "item_quantity": new_qty,
@@ -84,13 +89,11 @@ def add_item_dialog(current_loc, current_cat, all_locs, global_cats):
             conn.update(data=updated_df)
             st.rerun()
 
-# 6. Main UI Restored
+# 5. Main UI
 st.title("🍎 Family Inventory")
 
 if df is not None and not df.empty:
     global_locations = sorted(df['location'].dropna().unique().tolist())
-    global_categories = sorted(df['category'].dropna().unique().tolist())
-    
     selected_loc = st.selectbox("📍 View Location", global_locations)
     
     loc_df = df[df['location'] == selected_loc]
@@ -100,30 +103,44 @@ if df is not None and not df.empty:
     selected_cat = st.pills("Category", cats_in_loc, default=default_cat)
 
     if st.button("➕ Add New Item", use_container_width=True):
-        add_item_dialog(selected_loc, selected_cat, global_locations, global_categories)
+        add_item_dialog(selected_loc, selected_cat, global_locations, sorted(df['category'].dropna().unique().tolist()))
 
     st.divider()
 
-    # 7. List Display
+    # 6. List Display
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
-            # HTML Row
-            st.markdown(f"""
-                <div class="item-row">
-                    <div style="flex-grow: 1; font-size: 15px;">
-                        <b>{row['item_name']}</b> 
-                        <span style="color: #666; margin-left: 8px; font-weight: 800;">{int(row['item_quantity'])}</span>
+            c1, c2, c3 = st.columns([8, 1, 1])
+            
+            with c1:
+                st.markdown(f"""
+                    <div style="display: flex; align-items: baseline; gap: 10px;">
+                        <span style="font-size: 15px; font-weight: 500;">{row['item_name']}</span>
+                        <span style="font-size: 16px; font-weight: bold; color: #666;">{int(row['item_quantity'])}</span>
                     </div>
-                    <div style="display: flex; gap: 10px;">
-                        <a href="/?action=add&id={index}" target="_self" class="btn-plus">+</a>
-                        <a href="/?action=rem&id={index}" target="_self" class="btn-minus">−</a>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+            
+            with c2:
+                # Green Plus
+                if st.button("+", key=f"add_{index}"):
+                    df.at[index, 'item_quantity'] += 1
+                    conn.update(data=df)
+                    st.rerun()
+                st.markdown(f"<style>div[data-testid='stButton'] > button[key='add_{index}'] {{ color: #28a745 !important; }}</style>", unsafe_allow_html=True)
+            
+            with c3:
+                # Red Minus
+                if st.button("-", key=f"rem_{index}"):
+                    if row['item_quantity'] > 0:
+                        df.at[index, 'item_quantity'] -= 1
+                        conn.update(data=df)
+                        st.rerun()
+                st.markdown(f"<style>div[data-testid='stButton'] > button[key='rem_{index}'] {{ color: #dc3545 !important; }}</style>", unsafe_allow_html=True)
 
-            # Restored Note display
             if pd.notna(row['note']) and str(row['note']).strip() != "":
-                st.markdown(f"<div style='font-size: 12px; color: gray; margin-top: -8px; margin-bottom: 8px;'>📝 {row['note']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size: 12px; color: gray; margin-top: -5px;'>📝 {row['note']}</div>", unsafe_allow_html=True)
+            
+            st.markdown("<hr style='margin: 8px 0; opacity: 0.1;'>", unsafe_allow_html=True)
 
 else:
     st.info("Pantry is empty!")
