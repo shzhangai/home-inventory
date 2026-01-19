@@ -2,10 +2,10 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# 1. SETUP - Named exactly as you requested
+# 1. SETUP
 st.set_page_config(page_title="Home Inventory", layout="centered")
 
-# 2. INITIALIZE STATE - Ensures variables exist before UI loads
+# 2. INITIALIZE STATE
 if "needs_sync" not in st.session_state:
     st.session_state["needs_sync"] = False
 
@@ -18,7 +18,7 @@ if "df" not in st.session_state:
         st.error("Connection to Google Sheets failed.")
         st.stop()
 
-# 3. CALLBACKS - Fast local math
+# 3. CALLBACKS
 def update_qty(index, delta):
     st.session_state.df.at[index, 'item_quantity'] += delta
     if st.session_state.df.at[index, 'item_quantity'] < 0:
@@ -28,50 +28,34 @@ def update_qty(index, delta):
 def sync_to_cloud():
     conn.update(data=st.session_state.df)
     st.session_state["needs_sync"] = False
-    st.toast("✅ Google Sheets Updated!")
+    st.toast("✅ Cloud Updated!")
 
-# 4. MOBILE CSS - One row, no scrolling right
+# 4. MOBILE CSS
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
-    
-    /* Force row behavior on all screens */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
     }
-
-    /* Name + Qty Column */
     [data-testid="column"]:nth-of-type(1) { flex: 8 !important; min-width: 0px !important; }
-    
-    /* Button Columns */
     [data-testid="column"]:nth-of-type(2), [data-testid="column"]:nth-of-type(3) { 
-        flex: 1 !important; 
-        max-width: 45px !important; 
-        min-width: 45px !important; 
+        flex: 1 !important; max-width: 45px !important; min-width: 45px !important; 
     }
-
-    button { 
-        height: 40px !important; 
-        width: 40px !important; 
-        padding: 0px !important; 
-        font-size: 20px !important;
-    }
+    button { height: 40px !important; width: 40px !important; padding: 0px !important; font-size: 20px !important; }
     </style>
 """, unsafe_allow_html=True)
 
 # 5. UI CONTENT
 st.title("🏠 Home Inventory")
 
-# Sync Button - Appears only when there's something new to save
 if st.session_state["needs_sync"]:
     st.button("💾 SAVE TO CLOUD", on_click=sync_to_cloud, use_container_width=True, type="primary")
 
 df = st.session_state.df
 if df is not None and not df.empty:
-    # Filter Controls
     all_locs = sorted(df['location'].dropna().unique().tolist())
     sel_loc = st.selectbox("📍 Location", all_locs)
     
@@ -80,15 +64,20 @@ if df is not None and not df.empty:
 
     st.divider()
 
-    # The List
     items = df[(df['location'] == sel_loc) & (df['category'] == sel_cat)]
     
     for index, row in items.iterrows():
         c1, c2, c3 = st.columns([8, 1, 1])
         
         with c1:
-            # Item Name and Quantity on one line
             st.markdown(f"**{row['item_name']}** <span style='color:red; font-weight:bold; margin-left:8px;'>{int(row['item_quantity'])}</span>", unsafe_allow_html=True)
             
         with c2:
-            st.button("＋", key=f"add_{index}", on
+            st.button("＋", key=f"add_{index}", on_click=update_qty, args=(index, 1))
+            
+        with c3:
+            st.button("－", key=f"rem_{index}", on_click=update_qty, args=(index, -1))
+        
+        st.markdown("<hr style='margin:4px 0; opacity:0.1;'>", unsafe_allow_html=True)
+else:
+    st.warning("No data found.")
