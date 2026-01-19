@@ -3,23 +3,24 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-st.markdown("""
-    <style>
-    /* Add button styling */
-    div[data-testid="stButton"] button[key^="add_"] {
-        background-color: #28a745;
-        color: white;
-    }
-    /* Remove button styling */
-    div[data-testid="stButton"] button[key^="rem_"] {
-        background-color: #dc3545;
-        color: white;
-    }
-    </style>
-""", unsafe_content_compatible=True)
-
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
+
+# Custom CSS to make the buttons look better on mobile
+st.markdown("""
+    <style>
+    /* Make buttons more compact and centered */
+    div[data-testid="column"] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Simple divider color */
+    hr {
+        margin: 1rem 0 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # 2. Connection & Data Loading
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -84,23 +85,22 @@ if df is not None and not df.empty:
 
     st.divider()
 
-   # Items Display
+ # Items Display
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
             # Row 1: Name, Qty, Plus, Minus
-            # Column ratios: 5 (Name), 1.5 (Qty), 1.5 (Plus), 1.5 (Minus)
-            c1, c2, c3, c4 = st.columns([5, 1.5, 1.5, 1.5])
+            c1, c2, c3, c4 = st.columns([4, 1.5, 1.5, 1.5])
             
             with c1:
                 st.markdown(f"**{row['item_name']}**")
             
             with c2:
-                # Just the number, centered
+                # Big number for Qty
                 st.markdown(f"### {int(row['item_quantity'])}")
             
             with c3:
-                # Use use_container_width to make them easy to tap
-                if st.button("➕", key=f"add_{index}", use_container_width=True):
+                # 'type="primary"' often makes the button a solid color
+                if st.button("➕", key=f"add_{index}", use_container_width=True, type="primary"):
                     df.at[index, 'item_quantity'] += 1
                     df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
                     conn.update(data=df)
