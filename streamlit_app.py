@@ -27,6 +27,10 @@ st.markdown("""
         padding-bottom: 0px !important;
         margin-top: -45px !important; /* This pulls the buttons UP into the name row */
     }
+    /* This kills the extra padding Streamlit adds to every 'widget' */
+.stElementContainer {
+    margin-bottom: -1rem !important;
+}
     </style>
 """, unsafe_allow_html=True)
 
