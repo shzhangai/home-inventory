@@ -1,6 +1,21 @@
 # --- THE "ADD NEW ITEM" DIALOG FUNCTION ---
+# 1. IMPORTS FIRST
+import streamlit as st
+from streamlit_gsheets import GSheetsConnection
+import pandas as pd
+from datetime import datetime
+
+# 2. PAGE CONFIG SECOND
+st.set_page_config(page_title="Pantry Pilot", layout="centered")
+
+# 3. CONNECTION THIRD
+conn = st.connection("gsheets", type=GSheetsConnection)
+df = conn.read(ttl=0)
+
+# 4. FUNCTIONS (The Dialog) FOURTH
 @st.dialog("Add New Item")
 def add_item_dialog(current_loc, current_cat, all_locs, global_cats):
+ 
     # Form Fields
     new_name = st.text_input("Item Name")
     new_qty = st.number_input("Quantity", min_value=0, value=1)
