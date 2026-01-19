@@ -6,56 +6,57 @@ from datetime import datetime
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 2. THE CSS: High Contrast for S24+
+# 2. THE CSS: The "Secret Sauce" for Mobile Layout
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
     
-    /* Force Row Behavior */
-    [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-        gap: 0px !important;
+    /* This creates a single row that CANNOT wrap or scroll */
+    .pantry-item-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
     }
 
-    /* Column Widths */
-    [data-testid="column"]:nth-of-type(1) { flex: 10 !important; }
-    [data-testid="column"]:nth-of-type(2), 
-    [data-testid="column"]:nth-of-type(3) { 
-        flex: 1 !important; 
-        max-width: 45px !important; 
-        min-width: 40px !important;
+    /* Name and Qty stay together on the left */
+    .item-main {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex: 1;
     }
 
-    /* THE BUTTON FIX: Light gray circles so they are ALWAYS visible */
-    [data-testid="stHorizontalBlock"] button {
-        border: 1px solid #eeeeee !important;
-        background-color: #f0f2f6 !important; /* Light gray background */
-        border-radius: 50% !important; /* Circular buttons */
-        height: 38px !important;
-        width: 38px !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
+    /* Buttons stay together on the right */
+    .item-controls {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+    }
+
+    /* Strip all Streamlit styling from these specific buttons */
+    .item-controls div[data-testid="stButton"] > button {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
         padding: 0px !important;
+        margin: 0px !important;
+        width: 45px !important;
+        height: 45px !important;
+        min-width: 45px !important;
     }
 
-    /* Force the actual symbol (+) to be Green */
-    [data-testid="column"]:nth-of-type(2) button p { 
-        color: #28a745 !important; 
-        font-size: 24px !important; 
-        font-weight: 900 !important; 
+    /* Force the Color and Size of the text inside buttons */
+    .plus-btn p { color: #28a745 !important; font-size: 35px !important; font-weight: 900 !important; }
+    .minus-btn p { color: #dc3545 !important; font-size: 35px !important; font-weight: 900 !important; }
+
+    /* Remove the gray hover circle */
+    .item-controls button:hover, .item-controls button:active {
+        background: transparent !important;
     }
     
-    /* Force the actual symbol (-) to be Red */
-    [data-testid="column"]:nth-of-type(3) button p { 
-        color: #dc3545 !important; 
-        font-size: 24px !important; 
-        font-weight: 900 !important; 
-    }
-
     [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -68,45 +69,32 @@ if 'df' not in st.session_state:
 
 # 4. Instant Update Fragment
 @st.fragment
-def show_pantry_list(selected_loc, selected_cat):
-    df_local = st.session_state.df
-    for index, row in df_local.iterrows():
-        if row['location'] == selected_loc and row['category'] == selected_cat:
-            c1, c2, c3 = st.columns([10, 1, 1])
-            
-            with c1:
-                st.markdown(f"""
-                    <div style="display: flex; align-items: baseline; gap: 10px;">
-                        <span style="font-size: 16px; font-weight: 500;">{row['item_name']}</span>
-                        <span style="font-size: 16px; font-weight: 800; color: #ff4b4b;">{int(row['item_quantity'])}</span>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            with c2:
-                if st.button("+", key=f"add_{index}"):
-                    st.session_state.df.at[index, 'item_quantity'] += 1
-                    conn.update(data=st.session_state.df)
-                    st.rerun()
-            
-            with c3:
-                if st.button("-", key=f"rem_{index}"):
-                    if row['item_quantity'] > 0:
-                        st.session_state.df.at[index, 'item_quantity'] -= 1
-                        conn.update(data=st.session_state.df)
-                        st.rerun()
-
-            st.markdown("<hr style='margin: 8px 0; opacity: 0.1;'>", unsafe_allow_html=True)
-
-# 5. UI Build
-st.title("🍎 Family Inventory")
-
-if not st.session_state.df.empty:
-    global_locs = sorted(st.session_state.df['location'].dropna().unique().tolist())
-    sel_loc = st.selectbox("📍 Location", global_locs)
+def show_pantry_items(selected_loc, selected_cat):
+    # Filter locally for speed
+    df = st.session_state.df
+    items_to_show = df[(df['location'] == selected_loc) & (df['category'] == selected_cat)]
     
-    cat_df = st.session_state.df[st.session_state.df['location'] == sel_loc]
-    cats = sorted(cat_df['category'].dropna().unique().tolist())
-    sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
-
-    st.divider()
-    show_pantry_list(sel_loc, sel_cat)
+    for index, row in items_to_show.iterrows():
+        # Open the Flexbox Row
+        st.markdown(f"""
+            <div class="pantry-item-row">
+                <div class="item-main">
+                    <span style="font-size: 16px; font-weight: 500;">{row['item_name']}</span>
+                    <span style="font-size: 17px; font-weight: 900; color: #ff4b4b;">{int(row['item_quantity'])}</span>
+                </div>
+                <div class="item-controls">
+        """, unsafe_allow_html=True)
+        
+        # Insert the actual Streamlit Buttons into the HTML Flexbox
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.markdown('<div class="plus-btn">', unsafe_allow_html=True)
+            if st.button("+", key=f"add_{index}"):
+                st.session_state.df.at[index, 'item_quantity'] += 1
+                conn.update(data=st.session_state.df)
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with c2:
+            st.markdown('<div class="minus-btn">', unsafe_allow_html=True)
+            if st.button("-", key=f"rem_{index}"):
