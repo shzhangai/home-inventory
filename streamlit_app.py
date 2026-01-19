@@ -69,30 +69,40 @@ if df is not None and not df.empty:
 
     st.divider()
 
-    # Items Display
+   # Items Display
     for index, row in df.iterrows():
         if row['location'] == selected_loc and row['category'] == selected_cat:
-            col1, col2, col3 = st.columns([2, 0.5, 0.5])
-            with col1:
-                st.markdown(f"**{row['item_name']}**")
-                st.caption(f"Qty: {int(row['item_quantity'])}")
-                if pd.notna(row['note']) and row['note'] != "":
-                    st.caption(f"📝 {row['note']}")
+            # Row 1: Name, Qty, Plus, Minus
+            # Column ratios: 5 (Name), 1.5 (Qty), 1.5 (Plus), 1.5 (Minus)
+            c1, c2, c3, c4 = st.columns([5, 1.5, 1.5, 1.5])
             
-            with col2:
-                if st.button("➕", key=f"add_{index}"):
+            with c1:
+                st.markdown(f"**{row['item_name']}**")
+            
+            with c2:
+                # Just the number, centered
+                st.markdown(f"### {int(row['item_quantity'])}")
+            
+            with c3:
+                # Use use_container_width to make them easy to tap
+                if st.button("➕", key=f"add_{index}", use_container_width=True):
                     df.at[index, 'item_quantity'] += 1
                     df.at[index, 'last_add_date'] = datetime.now().strftime("%Y-%m-%d")
                     conn.update(data=df)
                     st.rerun()
             
-            with col3:
-                if st.button("➖", key=f"rem_{index}"):
+            with c4:
+                if st.button("➖", key=f"rem_{index}", use_container_width=True):
                     if row['item_quantity'] > 0:
                         df.at[index, 'item_quantity'] -= 1
                         df.at[index, 'last_remove_date'] = datetime.now().strftime("%Y-%m-%d")
                         conn.update(data=df)
                         st.rerun()
+            
+            # Row 2: Note (Only if it exists)
+            if pd.notna(row['note']) and str(row['note']).strip() != "":
+                st.caption(f"📝 {row['note']}")
+            
             st.divider()
 else:
     st.info("Your pantry is empty. Add your first item!")
