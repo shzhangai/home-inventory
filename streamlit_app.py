@@ -6,101 +6,106 @@ from datetime import datetime
 # 1. Page Config
 st.set_page_config(page_title="Pantry Pilot", layout="centered")
 
-# 2. THE CSS: Tight alignment and specific colors for the text signs
+# 2. THE CSS: Tight, colorful, and no "boxes"
 st.markdown("""
     <style>
     .block-container { padding: 1rem 0.5rem !important; }
     
-    /* Container for the whole row */
-    .pantry-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px solid #eee;
+    /* Force Row Behavior */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 0px !important;
     }
 
-    /* Left side: Name and Qty */
-    .item-info {
-        display: flex;
-        align-items: baseline;
-        gap: 10px;
-        flex-grow: 1;
+    /* Column 1 (Name + Qty) */
+    [data-testid="column"]:nth-of-type(1) { flex: 10 !important; }
+    
+    /* Columns 2 & 3 (The Buttons) */
+    [data-testid="column"]:nth-of-type(2), 
+    [data-testid="column"]:nth-of-type(3) { 
+        flex: 1 !important; 
+        max-width: 40px !important; 
+        min-width: 35px !important;
     }
 
-    /* Right side: The +/- signs */
-    .controls {
-        display: flex;
-        gap: 20px; /* Space between plus and minus */
-        padding-right: 10px;
+    /* Target buttons in the list ONLY */
+    [data-testid="stHorizontalBlock"] button {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        height: 40px !important;
+        width: 40px !important;
     }
 
-    /* Style the signs to look like bold text, not buttons */
-    .sign-link {
-        text-decoration: none !important;
-        font-size: 32px !important;
-        font-weight: bold !important;
-        line-height: 1;
+    /* Force the button text to be Green/Red and Big */
+    [data-testid="column"]:nth-of-type(2) button p { color: #28a745 !important; font-size: 32px !important; font-weight: bold !important; }
+    [data-testid="column"]:nth-of-type(3) button p { color: #dc3545 !important; font-size: 32px !important; font-weight: bold !important; }
+
+    /* Remove hover background */
+    [data-testid="stHorizontalBlock"] button:hover, 
+    [data-testid="stHorizontalBlock"] button:active {
+        background: transparent !important;
     }
     
-    .plus { color: #28a745 !important; }
-    .minus { color: #dc3545 !important; }
+    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Data Connection
+# 3. Connection and Session State
 conn = st.connection("gsheets", type=GSheetsConnection)
-if 'inventory_df' not in st.session_state:
-    st.session_state.inventory_df = conn.read(ttl=0)
 
-# 4. Action Handler
-params = st.query_params
-if "action" in params and "id" in params:
-    idx = int(params["id"])
-    if params["action"] == "add":
-        st.session_state.inventory_df.at[idx, 'item_quantity'] += 1
-    elif params["action"] == "rem" and st.session_state.inventory_df.at[idx, 'item_quantity'] > 0:
-        st.session_state.inventory_df.at[idx, 'item_quantity'] -= 1
-    
-    # Background update to Google Sheets
-    conn.update(data=st.session_state.inventory_df)
-    st.query_params.clear()
-    st.rerun()
+if 'df' not in st.session_state:
+    st.session_state.df = conn.read(ttl=0)
+
+# 4. Fragment for INSTANT Updates
+@st.fragment
+def show_pantry_list(selected_loc, selected_cat):
+    # Only work with the items in the selected category
+    for index, row in st.session_state.df.iterrows():
+        if row['location'] == selected_loc and row['category'] == selected_cat:
+            c1, c2, c3 = st.columns([10, 1, 1])
+            
+            with c1:
+                st.markdown(f"""
+                    <div style="display: flex; align-items: baseline; gap: 10px;">
+                        <span style="font-size: 16px; font-weight: 500;">{row['item_name']}</span>
+                        <span style="font-size: 16px; font-weight: 800; color: #666;">{int(row['item_quantity'])}</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            with c2:
+                if st.button("+", key=f"add_{index}"):
+                    st.session_state.df.at[index, 'item_quantity'] += 1
+                    conn.update(data=st.session_state.df)
+                    st.rerun()
+            
+            with c3:
+                if st.button("-", key=f"rem_{index}"):
+                    if row['item_quantity'] > 0:
+                        st.session_state.df.at[index, 'item_quantity'] -= 1
+                        conn.update(data=st.session_state.df)
+                        st.rerun()
+
+            st.markdown("<hr style='margin: 8px 0; opacity: 0.1;'>", unsafe_allow_html=True)
 
 # 5. Main UI
 st.title("🍎 Family Inventory")
 
-df = st.session_state.inventory_df
+df = st.session_state.df
 if not df.empty:
-    g_locs = sorted(df['location'].dropna().unique().tolist())
-    selected_loc = st.selectbox("📍 Location", g_locs)
+    global_locations = sorted(df['location'].dropna().unique().tolist())
+    selected_loc = st.selectbox("📍 Location", global_locations)
     
     loc_df = df[df['location'] == selected_loc]
     cats_in_loc = sorted(loc_df['category'].dropna().unique().tolist())
     selected_cat = st.pills("Category", cats_in_loc, default=cats_in_loc[0] if cats_in_loc else None)
 
     st.divider()
-
-    # 6. The List (Using HTML for perfect spacing)
-    for index, row in df.iterrows():
-        if row['location'] == selected_loc and row['category'] == selected_cat:
-            st.markdown(f"""
-                <div class="pantry-row">
-                    <div class="item-info">
-                        <span style="font-size: 16px; font-weight: 500;">{row['item_name']}</span>
-                        <span style="font-size: 16px; font-weight: 800; color: #666;">{int(row['item_quantity'])}</span>
-                    </div>
-                    <div class="controls">
-                        <a href="/?action=add&id={index}" target="_self" class="sign-link plus">+</a>
-                        <a href="/?action=rem&id={index}" target="_self" class="sign-link minus">−</a>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            if pd.notna(row['note']) and str(row['note']).strip() != "":
-                st.markdown(f"<div style='font-size: 12px; color: gray; margin-top: -8px; margin-bottom: 8px;'>📝 {row['note']}</div>", unsafe_allow_html=True)
-
-# 7. Add Button (placed at the bottom for better mobile reach)
-st.write("")
-if st.button("➕ Add New Item", use_container_width=True):
-    st.info("Trigger add dialog")
+    
+    # Call the fragment
+    show_pantry_list(selected_loc, selected_cat)
