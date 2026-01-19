@@ -29,7 +29,34 @@ def safe_sync():
     st.session_state["needs_sync"] = False
     st.toast("✅ Saved!")
 
-# 3. UI TOP BAR
+# 3. CSS - Minimal and Clean
+st.markdown("""
+    <style>
+    .block-container { padding: 1rem 0.5rem !important; }
+    
+    /* Style the buttons to be compact and square */
+    div.stButton > button {
+        width: 45px !important;
+        height: 40px !important;
+        padding: 0px !important;
+        font-weight: bold !important;
+    }
+    
+    /* Ensure the table takes full width but doesn't allow wrapping */
+    .inventory-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .name-col { width: 60%; font-weight: bold; font-size: 15px; }
+    .qty-col { width: 10%; color: red; font-weight: bold; text-align: center; font-size: 18px; }
+    .btn-col { width: 15%; text-align: center; }
+    
+    hr { margin: 4px 0 !important; opacity: 0.2; }
+    </style>
+""", unsafe_allow_html=True)
+
+# 4. UI TOP BAR
 st.title("🏠 Home Inventory")
 
 if st.session_state.get("needs_sync", False):
@@ -44,57 +71,33 @@ sel_cat = st.pills("Category", cats, default=cats[0] if cats else None)
 
 st.divider()
 
-# 4. THE ROW RENDERER
-# We are abandoning st.columns and using a custom layout
+# 5. THE TABLE LIST
 @st.fragment
-def render_list(location, category):
+def render_table_list(location, category):
     items = st.session_state.df[
         (st.session_state.df['location'] == location) & 
         (st.session_state.df['category'] == category)
     ]
     
     for index, row in items.iterrows():
-        # Using an inner container with custom CSS to prevent any wrapping
-        # 'nowrap' is the key instruction here.
-        st.markdown(
-            f"""
-            <div style="
-                display: flex;
-                flex-direction: row;
-                flex-wrap: nowrap;
-                align-items: center;
-                justify-content: space-between;
-                width: 100%;
-                padding: 10px 0;
-                border-bottom: 1px solid #eee;
-            ">
-                <div style="flex-grow: 1; min-width: 0; margin-right: 10px;">
-                    <span style="font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">
-                        {row['item_name']}
-                    </span>
-                </div>
-                <div style="color: red; font-weight: bold; font-size: 1.2rem; margin-right: 15px; flex-shrink: 0;">
-                    {int(row['item_quantity'])}
-                </div>
-                <div style="display: flex; gap: 5px; flex-shrink: 0;">
-                    </div>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+        # We use a single set of columns, but we keep the buttons 
+        # as close to the text as possible.
+        col_main, col_p, col_m = st.columns([0.6, 0.2, 0.2])
         
-        # We place the buttons immediately below the HTML label to keep them in the flow
-        # but we use columns that are SO small they won't trigger a wrap.
-        b_col1, b_col2, b_filler = st.columns([0.2, 0.2, 0.6])
-        with b_col1:
+        with col_main:
+            # Item Name and Red Qty
+            st.markdown(f"**{row['item_name']}** <span style='color:red; margin-left:10px;'>{int(row['item_quantity'])}</span>", unsafe_allow_html=True)
+        
+        with col_p:
             if st.button("＋", key=f"p_{index}"):
                 update_qty(index, 1)
                 st.rerun(scope="fragment")
-        with b_col2:
+        
+        with col_m:
             if st.button("－", key=f"m_{index}"):
                 update_qty(index, -1)
                 st.rerun(scope="fragment")
         
-        st.markdown("<div style='margin-top:-45px;'></div>", unsafe_allow_html=True)
+        st.markdown("<hr>", unsafe_allow_html=True)
 
-render_list(sel_loc, sel_cat)
+render_table_list(sel_loc, sel_cat)
